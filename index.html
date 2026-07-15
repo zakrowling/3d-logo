@@ -1,0 +1,589 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>3D Vector Studio</title>
+  <style>
+    :root {
+      --panel-bg: #2d2d35;
+      --border-color: #3f3f4a;
+      --accent-color: #0079C8;
+      --text-color: #e0e0e0;
+      --text-dim: #9090a0;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      user-select: none;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      background-color: #ffffff;
+      color: var(--text-color);
+      overflow: hidden;
+      height: 100vh;
+      width: 100vw;
+    }
+
+    #canvas-container {
+      width: 100%;
+      height: 100%;
+      position: absolute;
+      top: 0;
+      left: 0;
+    }
+
+    /* Floating Sidebar Settings */
+    .settings-panel {
+      position: absolute;
+      top: 20px;
+      right: 20px;
+      width: 320px;
+      max-height: calc(100vh - 40px);
+      background: var(--panel-bg);
+      border-radius: 12px;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+      border: 1px solid var(--border-color);
+      display: flex;
+      flex-direction: column;
+      z-index: 10;
+      overflow-y: auto;
+    }
+
+    .panel-header {
+      padding: 16px 20px;
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 1.2px;
+      color: var(--text-dim);
+      border-bottom: 1px solid var(--border-color);
+      text-transform: uppercase;
+    }
+
+    .accordion-item {
+      border-bottom: 1px solid var(--border-color);
+    }
+
+    .accordion-header {
+      padding: 14px 20px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      cursor: pointer;
+      font-size: 14px;
+      font-weight: 500;
+      transition: background 0.2s;
+    }
+
+    .accordion-header:hover {
+      background: rgba(255,255,255,0.03);
+    }
+
+    .accordion-header::after {
+      content: '›';
+      font-size: 16px;
+      transition: transform 0.2s;
+    }
+
+    .accordion-item.active .accordion-header::after {
+      transform: rotate(90deg);
+    }
+
+    .accordion-content {
+      display: none;
+      padding: 16px 20px;
+      background: rgba(0,0,0,0.15);
+    }
+
+    .accordion-item.active .accordion-content {
+      display: block;
+    }
+
+    .control-group {
+      margin-bottom: 16px;
+    }
+
+    .control-group:last-child {
+      margin-bottom: 0;
+    }
+
+    label {
+      display: block;
+      font-size: 12px;
+      color: var(--text-dim);
+      margin-bottom: 8px;
+    }
+
+    .slider-container {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    input[type="range"] {
+      flex: 1;
+      accent-color: var(--accent-color);
+      background: #111;
+      height: 4px;
+      border-radius: 2px;
+      appearance: none;
+    }
+
+    input[type="range"]::-webkit-slider-thumb {
+      appearance: none;
+      width: 14px;
+      height: 14px;
+      border-radius: 50%;
+      background: #fff;
+      cursor: pointer;
+    }
+
+    .value-display {
+      font-size: 12px;
+      width: 36px;
+      text-align: right;
+      color: var(--text-dim);
+    }
+
+    select {
+      width: 100%;
+      padding: 8px 12px;
+      background: #1e1e24;
+      border: 1px solid var(--border-color);
+      border-radius: 6px;
+      color: #fff;
+      font-size: 13px;
+      outline: none;
+    }
+
+    .toggle-container {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .switch {
+      position: relative;
+      display: inline-block;
+      width: 40px;
+      height: 22px;
+    }
+
+    .switch input {
+      opacity: 0;
+      width: 0;
+      height: 0;
+    }
+
+    .slider {
+      position: absolute;
+      cursor: pointer;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background-color: #3f3f4a;
+      transition: .2s;
+      border-radius: 22px;
+    }
+
+    .slider:before {
+      position: absolute;
+      content: "";
+      height: 16px;
+      width: 16px;
+      left: 3px;
+      bottom: 3px;
+      background-color: white;
+      transition: .2s;
+      border-radius: 50%;
+    }
+
+    input:checked + .slider {
+      background-color: var(--accent-color);
+    }
+
+    input:checked + .slider:before {
+      transform: translateX(18px);
+    }
+
+    .action-btn {
+      width: 100%;
+      padding: 10px 16px;
+      background: var(--accent-color);
+      color: white;
+      border: none;
+      border-radius: 6px;
+      font-weight: 600;
+      font-size: 13px;
+      cursor: pointer;
+      transition: background 0.2s;
+      text-align: center;
+    }
+
+    .action-btn:hover {
+      background: #005c99;
+    }
+
+    .action-btn.secondary {
+      background: #3f3f4a;
+    }
+
+    .action-btn.secondary:hover {
+      background: #50505e;
+    }
+  </style>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/SVGLoader.js"></script>
+</head>
+<body>
+
+  <div id="canvas-container"></div>
+
+  <div class="settings-panel">
+    <div class="panel-header">Settings</div>
+
+    <div class="accordion-item">
+      <div class="accordion-header">Theme Preset</div>
+      <div class="accordion-content">
+        <div class="control-group">
+          <label>Color Mode</label>
+          <select id="theme-preset">
+            <option value="blue-on-white">Brand Blue (#0079C8) on White</option>
+            <option value="white-on-navy">White on Dark Navy (#0D1846)</option>
+          </select>
+        </div>
+      </div>
+    </div>
+
+    <div class="accordion-item">
+      <div class="accordion-header">Object</div>
+      <div class="accordion-content">
+        <div class="control-group">
+          <label>Extrusion Depth</label>
+          <div class="slider-container">
+            <input type="range" id="depth" min="1" max="50" value="12">
+            <span class="value-display" id="depth-val">12</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="accordion-item">
+      <div class="accordion-header">Animation</div>
+      <div class="accordion-content">
+        <div class="control-group">
+          <label>Animation Type</label>
+          <select id="anim-type">
+            <option value="none" selected>None</option>
+            <option value="rotate">Rotate (Left to Right)</option>
+            <option value="flip">Flip (Up and Down)</option>
+            <option value="random">Random (Multi-Axis)</option>
+          </select>
+        </div>
+        <div class="control-group">
+          <label>Speed</label>
+          <div class="slider-container">
+            <input type="range" id="speed" min="0" max="2" step="0.05" value="0.5">
+            <span class="value-display" id="speed-val">0.5x</span>
+          </div>
+        </div>
+        <div class="control-group toggle-container">
+          <label style="margin:0">Reverse Direction</label>
+          <label class="switch">
+            <input type="checkbox" id="reverse-dir">
+            <span class="slider"></span>
+          </label>
+        </div>
+        <div class="control-group" style="margin-top: 12px;">
+          <button class="action-btn secondary" id="reset-pos-btn">Reset Position</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="accordion-item">
+      <div class="accordion-header">Lighting</div>
+      <div class="accordion-content">
+        <div class="control-group">
+          <label>Key Light X</label>
+          <div class="slider-container">
+            <input type="range" id="key-x" min="-10" max="10" step="0.1" value="2.0">
+            <span class="value-display" id="key-x-val">2.0</span>
+          </div>
+        </div>
+        <div class="control-group">
+          <label>Key Light Y</label>
+          <div class="slider-container">
+            <input type="range" id="key-y" min="-10" max="10" step="0.1" value="2.0">
+            <span class="value-display" id="key-y-val">2.0</span>
+          </div>
+        </div>
+        <div class="control-group">
+          <label>Key Light Z</label>
+          <div class="slider-container">
+            <input type="range" id="key-z" min="-10" max="10" step="0.1" value="4.0">
+            <span class="value-display" id="key-z-val">4.0</span>
+          </div>
+        </div>
+        <div class="control-group">
+          <label>Key Intensity</label>
+          <div class="slider-container">
+            <input type="range" id="key-intensity" min="0" max="3" step="0.1" value="1.2">
+            <span class="value-display" id="key-intensity-val">1.2</span>
+          </div>
+        </div>
+        <div class="control-group">
+          <label>Ambient Light</label>
+          <div class="slider-container">
+            <input type="range" id="ambient-intensity" min="0" max="1" step="0.05" value="0.30">
+            <span class="value-display" id="ambient-intensity-val">0.30</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="accordion-item active">
+      <div class="accordion-header">Export</div>
+      <div class="accordion-content">
+        <button class="action-btn" id="export-png-btn">Download Transparent PNG</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const svgData = `<svg width="161" height="43" viewBox="0 0 161 43" fill="none" xmlns="http://www.w3.org/2000/svg">
+<g clip-path="url(#clip0_250_23471)">
+<path d="M59.1002 4.36011H72.4202C75.8202 4.36011 78.4202 5.29011 79.8702 6.99011C80.4499 7.6572 80.8752 8.44413 81.1155 9.29465C81.3557 10.1452 81.4052 11.0383 81.2602 11.9101V12.0001C81.0847 13.4465 80.5297 14.8207 79.6516 15.9834C78.7735 17.146 77.6034 18.0557 76.2602 18.6201C79.5902 19.8001 81.7702 21.8001 81.2602 25.8301V25.9201C80.6102 31.2201 75.8902 34.0601 69.2602 34.0601H55.4502L59.1002 4.36011ZM70.4302 21.2901H62.1502L61.1502 29.4401H69.8102C73.3702 29.4401 75.7102 28.0401 76.0402 25.3601V25.2801C76.3602 22.7701 74.5502 21.2901 70.4302 21.2901ZM75.9302 12.7601C76.2202 10.4301 74.5302 9.00011 71.1802 9.00011H63.6702L62.6702 16.9001H69.8002C73.1502 16.9001 75.5602 15.5801 75.8902 12.9001L75.9302 12.7601ZM84.7502 25.9201L86.5002 11.6601H91.6402L90.0702 24.3901C89.6502 27.8701 91.1502 29.8201 94.2002 29.8201C97.2502 29.8201 99.5002 27.8201 99.9302 24.3001L101.48 11.6601H106.66L103.91 34.0601H98.7302L99.1602 30.5801C98.3195 31.7941 97.2015 32.7903 95.8989 33.4859C94.5964 34.1816 93.1467 34.5567 91.6702 34.5801C86.6202 34.5301 84.1102 31.1301 84.7502 25.9201ZM111.58 11.6601H116.71L116.26 15.3901C117.204 14.1105 118.431 13.0658 119.844 12.3374C121.258 11.609 122.82 11.2164 124.41 11.1901C129.67 11.1901 134.3 15.3501 133.41 22.8201V22.9001C132.5 30.3301 126.89 34.5301 121.58 34.5301C120.137 34.5763 118.709 34.2283 117.449 33.5235C116.19 32.8187 115.146 31.7838 114.43 30.5301L113.17 40.8001H108L111.58 11.6601ZM128.15 22.9001V22.8201C128.68 18.4901 126.15 15.6501 122.62 15.6501C120.727 15.7474 118.933 16.5273 117.571 17.8456C116.208 19.1638 115.37 20.9311 115.21 22.8201V22.9001C114.68 27.1901 117.38 30.0701 120.86 30.0701C124.34 30.0701 127.61 27.3201 128.15 22.9001ZM136.04 22.9001V22.8201C136.95 15.3901 142.52 11.1901 147.87 11.1901C149.313 11.1428 150.742 11.4903 152.002 12.1952C153.262 12.9001 154.305 13.9357 155.02 15.1901L155.45 11.7101H160.58L157.83 34.1101H152.7L153.15 30.3801C152.206 31.6597 150.98 32.7044 149.566 33.4328C148.153 34.1613 146.59 34.5539 145 34.5801C139.75 34.5301 135.13 30.3301 136 22.9001H136.04ZM154.16 22.9001V22.8201C154.69 18.4901 151.99 15.6501 148.55 15.6501C145.11 15.6501 141.76 18.3601 141.22 22.8201V22.9001C140.69 27.2301 143.31 30.0701 146.79 30.0701C150.27 30.0701 153.63 27.1901 154.16 22.9001Z" fill="#0079C8"/>
+<path d="M42.52 30.5201H38.83C38.1596 30.4891 37.5085 30.2861 36.9393 29.9305C36.3701 29.575 35.902 29.0789 35.58 28.4901L32.16 35.5801C32.0368 35.8369 31.832 36.0457 31.5777 36.1739C31.3233 36.3021 31.0337 36.3425 30.7539 36.2889C30.4742 36.2352 30.2201 36.0905 30.0313 35.8772C29.8424 35.664 29.7295 35.3943 29.71 35.1101L27.59 11.1101L23.08 30.8401C23.0281 31.0621 22.9097 31.263 22.7406 31.416C22.5714 31.5689 22.3597 31.6665 22.1336 31.6959C21.9075 31.7252 21.6778 31.6849 21.4752 31.5802C21.2726 31.4755 21.1069 31.3115 21 31.1101L18.85 27.0601C18.026 28.1637 16.9495 29.0538 15.7107 29.6558C14.4719 30.2578 13.1069 30.5541 11.73 30.5201H0V42.5201H42.52V30.5201Z" fill="#0079C8"/>
+<path d="M0 28.27V0H42.56V28.23H38.87C38 28.23 37.3 26.89 36.93 26.16C36.7931 25.8522 36.6073 25.5686 36.38 25.32C36.2484 25.1953 36.0893 25.1032 35.9157 25.0511C35.742 24.999 35.5585 24.9884 35.38 25.02C35.209 25.0501 35.0471 25.119 34.9067 25.2212C34.7663 25.3235 34.6512 25.4565 34.57 25.61L31.68 31.78L29.37 6.27C29.3395 5.93666 29.1906 5.62528 28.9503 5.39229C28.71 5.1593 28.3941 5.02013 28.06 5C27.7218 4.9797 27.3874 5.08014 27.1163 5.28343C26.8453 5.48672 26.6552 5.77964 26.58 6.11L21.59 27.47L19.91 24.38C19.8358 24.2427 19.7339 24.1222 19.6108 24.0263C19.4877 23.9303 19.3461 23.8608 19.1948 23.8223C19.0436 23.7838 18.8859 23.777 18.7319 23.8025C18.5779 23.8279 18.4309 23.8849 18.3 23.97C18.0656 24.1554 17.8716 24.3868 17.73 24.65C17.1553 25.7433 16.2924 26.6586 15.2348 27.2967C14.1772 27.9348 12.9652 28.2714 11.73 28.27H0Z" fill="#0079C8"/>
+</g>
+<defs>
+<clipPath id="clip0_250_23471">
+<rect width="161" height="43" fill="white"/>
+</clipPath>
+</defs>
+</svg>`;
+
+    const state = {
+      preset: 'blue-on-white',
+      depth: 12,
+      bgColor: '#ffffff',
+      modelColor: '#0079C8',
+      animType: 'none',
+      speed: 0.5,
+      reverse: false,
+      keyX: 2.0,
+      keyY: 2.0,
+      keyZ: 4.0,
+      keyIntensity: 1.2,
+      ambientIntensity: 0.30
+    };
+
+    // Scene Setup
+    const container = document.getElementById('canvas-container');
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(state.bgColor);
+
+    const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
+    const initialCameraPos = new THREE.Vector3(0, 0, 250);
+    camera.position.copy(initialCameraPos);
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    container.appendChild(renderer.domElement);
+
+    const controls = new THREE.OrbitControls(camera, renderer.domElement);
+    controls.enableDamping = true;
+
+    // Lights
+    const ambientLight = new THREE.AmbientLight(0xffffff, state.ambientIntensity);
+    scene.add(ambientLight);
+
+    const keyLight = new THREE.DirectionalLight(0xffffff, state.keyIntensity);
+    scene.add(keyLight);
+
+    function updateKeyLightPosition() {
+      const scale = 50;
+      keyLight.position.set(state.keyX * scale, state.keyY * scale, state.keyZ * scale);
+    }
+    updateKeyLightPosition();
+
+    // Material setup
+    const material = new THREE.MeshStandardMaterial({
+      color: new THREE.Color(state.modelColor),
+      side: THREE.DoubleSide
+    });
+
+    // 3D Object Group
+    let logoGroup = new THREE.Group();
+    scene.add(logoGroup);
+
+    function build3DObject() {
+      while(logoGroup.children.length > 0) { 
+        const obj = logoGroup.children[0];
+        logoGroup.remove(obj); 
+        if (obj.geometry) obj.geometry.dispose();
+      }
+
+      const loader = new THREE.SVGLoader();
+      const svgDataParsed = loader.parse(svgData);
+
+      const extrudeSettings = {
+        depth: state.depth,
+        bevelEnabled: false,
+        steps: 1
+      };
+
+      svgDataParsed.paths.forEach((path) => {
+        const shapes = THREE.SVGLoader.createShapes(path);
+        shapes.forEach((shape) => {
+          const geometry = new THREE.ExtrudeGeometry(shape, extrudeSettings);
+          const mesh = new THREE.Mesh(geometry, material);
+          logoGroup.add(mesh);
+        });
+      });
+
+      // Center Geometry inside local group space
+      const box = new THREE.Box3().setFromObject(logoGroup);
+      const center = box.getCenter(new THREE.Vector3());
+      
+      logoGroup.children.forEach(child => {
+        child.position.sub(center);
+      });
+
+      logoGroup.scale.y = -1;
+    }
+
+    build3DObject();
+
+    // UI Accordions
+    document.querySelectorAll('.accordion-header').forEach(header => {
+      header.addEventListener('click', () => {
+        header.parentElement.classList.toggle('active');
+      });
+    });
+
+    // Control Bindings
+    const bindControl = (id, property, valDisplaySuffix = '', callback = null) => {
+      const elem = document.getElementById(id);
+      const valDisplay = document.getElementById(`${id}-val`);
+      
+      elem.addEventListener('input', (e) => {
+        let val = e.target.type === 'checkbox' ? e.target.checked : parseFloat(e.target.value);
+        if (isNaN(val)) val = e.target.value;
+        
+        state[property] = val;
+        
+        if (valDisplay) valDisplay.textContent = (typeof val === 'number' && !Number.isInteger(val) ? val.toFixed(1) : val) + valDisplaySuffix;
+        if (callback) callback(val);
+      });
+    };
+
+    // Preset switcher
+    document.getElementById('theme-preset').addEventListener('change', (e) => {
+      state.preset = e.target.value;
+      if (state.preset === 'blue-on-white') {
+        state.modelColor = '#0079C8';
+        state.bgColor = '#ffffff';
+      } else {
+        state.modelColor = '#ffffff';
+        state.bgColor = '#0D1846';
+      }
+      material.color.set(state.modelColor);
+      scene.background.set(state.bgColor);
+    });
+
+    // Reset Object & Camera Position
+    document.getElementById('reset-pos-btn').addEventListener('click', () => {
+      logoGroup.position.set(0, 0, 0);
+      logoGroup.rotation.set(0, 0, 0);
+      camera.position.copy(initialCameraPos);
+      controls.target.set(0, 0, 0);
+      controls.update();
+    });
+
+    bindControl('depth', 'depth', '', () => build3DObject());
+    bindControl('speed', 'speed', 'x');
+    bindControl('reverse-dir', 'reverse');
+
+    // Lighting Bindings
+    bindControl('key-x', 'keyX', '', () => updateKeyLightPosition());
+    bindControl('key-y', 'keyY', '', () => updateKeyLightPosition());
+    bindControl('key-z', 'keyZ', '', () => updateKeyLightPosition());
+    bindControl('key-intensity', 'keyIntensity', '', (v) => keyLight.intensity = v);
+    bindControl('ambient-intensity', 'ambientIntensity', '', (v) => ambientLight.intensity = v);
+
+    document.getElementById('anim-type').addEventListener('change', (e) => {
+      state.animType = e.target.value;
+    });
+
+    // Modifier key listener for Pan mode translation
+    window.addEventListener('keydown', (e) => {
+      if (e.metaKey || e.ctrlKey) {
+        controls.mouseButtons.LEFT = THREE.MOUSE.PAN;
+      }
+    });
+
+    window.addEventListener('keyup', (e) => {
+      if (!e.metaKey && !e.ctrlKey) {
+        controls.mouseButtons.LEFT = THREE.MOUSE.ROTATE;
+      }
+    });
+
+    // Transparent Export
+    document.getElementById('export-png-btn').addEventListener('click', () => {
+      const originalBg = scene.background;
+      scene.background = null;
+
+      renderer.render(scene, camera);
+      const dataURL = renderer.domElement.toDataURL('image/png');
+
+      scene.background = originalBg;
+      renderer.render(scene, camera);
+
+      const link = document.createElement('a');
+      link.download = '3d-logo-transparent.png';
+      link.href = dataURL;
+      link.click();
+    });
+
+    // Window Resize
+    window.addEventListener('resize', () => {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+
+    // Animation Loop
+    const clock = new THREE.Clock();
+
+    function animate() {
+      requestAnimationFrame(animate);
+
+      const delta = clock.getDelta();
+      const direction = state.reverse ? -1 : 1;
+
+      if (state.animType === 'rotate') {
+        // Rotate continuous spin: Left to Right (Y-axis)
+        logoGroup.rotation.y += delta * state.speed * 2 * direction;
+      } else if (state.animType === 'flip') {
+        // Flip continuous spin: Up and Down (X-axis)
+        logoGroup.rotation.x += delta * state.speed * 2 * direction;
+      } else if (state.animType === 'random') {
+        // Multi-axis spin: Left to Right and Up and Down (X and Y axes)
+        logoGroup.rotation.y += delta * state.speed * 2 * direction;
+        logoGroup.rotation.x += delta * state.speed * 1.5 * direction;
+      }
+
+      controls.update();
+      renderer.render(scene, camera);
+    }
+
+    animate();
+  </script>
+</body>
+</html>
