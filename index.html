@@ -23,7 +23,7 @@
 
     body {
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-      background-color: #ffffff;
+      background-color: #e3e3e3;
       color: var(--text-color);
       overflow: hidden;
       height: 100vh;
@@ -36,6 +36,14 @@
       position: absolute;
       top: 0;
       left: 0;
+      /* Light Mode Radial Spotlight Gradient */
+      background: radial-gradient(circle at center, #ffffff 0%, #dcdcdc 50%, #bcbcbc 100%);
+      transition: background 0.3s ease;
+    }
+
+    /* Dark Mode Inverted Radial Spotlight Gradient */
+    #canvas-container.dark-theme {
+      background: radial-gradient(circle at center, #1b2654 0%, #0d1846 60%, #050a21 100%);
     }
 
     /* Floating Sidebar Settings */
@@ -253,8 +261,8 @@
         <div class="control-group">
           <label>Color Mode</label>
           <select id="theme-preset">
-            <option value="blue-on-white">Brand Blue (#0079C8) on White</option>
-            <option value="white-on-navy">White on Dark Navy (#0D1846)</option>
+            <option value="blue-on-white">Brand Blue (#0079C8) on White Spotlight</option>
+            <option value="white-on-navy">White on Dark Navy Spotlight</option>
           </select>
         </div>
       </div>
@@ -343,6 +351,13 @@
             <span class="value-display" id="ambient-intensity-val">0.30</span>
           </div>
         </div>
+        <div class="control-group toggle-container">
+          <label style="margin:0">Ground Shadow</label>
+          <label class="switch">
+            <input type="checkbox" id="enable-shadows" checked>
+            <span class="slider"></span>
+          </label>
+        </div>
       </div>
     </div>
 
@@ -371,7 +386,6 @@
     const state = {
       preset: 'blue-on-white',
       depth: 12,
-      bgColor: '#ffffff',
       modelColor: '#0079C8',
       animType: 'none',
       speed: 0.5,
@@ -380,21 +394,23 @@
       keyY: 2.0,
       keyZ: 4.0,
       keyIntensity: 1.2,
-      ambientIntensity: 0.30
+      ambientIntensity: 0.30,
+      shadowsEnabled: true
     };
 
     // Scene Setup
     const container = document.getElementById('canvas-container');
     const scene = new THREE.Scene();
-    scene.background = new THREE.Color(state.bgColor);
 
     const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
     const initialCameraPos = new THREE.Vector3(0, 0, 250);
     camera.position.copy(initialCameraPos);
 
-    const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
+    const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true, alpha: true });
     renderer.setSize(window.innerWidth, window.innerHeight);
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     container.appendChild(renderer.domElement);
 
     const controls = new THREE.OrbitControls(camera, renderer.domElement);
@@ -405,6 +421,16 @@
     scene.add(ambientLight);
 
     const keyLight = new THREE.DirectionalLight(0xffffff, state.keyIntensity);
+    keyLight.castShadow = true;
+    keyLight.shadow.mapSize.width = 1024;
+    keyLight.shadow.mapSize.height = 1024;
+    keyLight.shadow.camera.near = 10;
+    keyLight.shadow.camera.far = 1000;
+    keyLight.shadow.camera.left = -150;
+    keyLight.shadow.camera.right = 150;
+    keyLight.shadow.camera.top = 150;
+    keyLight.shadow.camera.bottom = -150;
+    keyLight.shadow.bias = -0.0005;
     scene.add(keyLight);
 
     function updateKeyLightPosition() {
@@ -412,6 +438,15 @@
       keyLight.position.set(state.keyX * scale, state.keyY * scale, state.keyZ * scale);
     }
     updateKeyLightPosition();
+
+    // Subtle Ground Shadow Plane
+    const shadowPlaneGeo = new THREE.PlaneGeometry(1000, 1000);
+    const shadowPlaneMat = new THREE.ShadowMaterial({ opacity: 0.18 });
+    const shadowPlane = new THREE.Mesh(shadowPlaneGeo, shadowPlaneMat);
+    shadowPlane.rotation.x = -Math.PI / 2;
+    shadowPlane.position.y = -35;
+    shadowPlane.receiveShadow = true;
+    scene.add(shadowPlane);
 
     // Material setup
     const material = new THREE.MeshStandardMaterial({
@@ -444,6 +479,8 @@
         shapes.forEach((shape) => {
           const geometry = new THREE.ExtrudeGeometry(shape, extrudeSettings);
           const mesh = new THREE.Mesh(geometry, material);
+          mesh.castShadow = true;
+          mesh.receiveShadow = true;
           logoGroup.add(mesh);
         });
       });
@@ -489,13 +526,12 @@
       state.preset = e.target.value;
       if (state.preset === 'blue-on-white') {
         state.modelColor = '#0079C8';
-        state.bgColor = '#ffffff';
+        container.classList.remove('dark-theme');
       } else {
         state.modelColor = '#ffffff';
-        state.bgColor = '#0D1846';
+        container.classList.add('dark-theme');
       }
       material.color.set(state.modelColor);
-      scene.background.set(state.bgColor);
     });
 
     // Reset Object & Camera Position
@@ -518,6 +554,11 @@
     bindControl('key-intensity', 'keyIntensity', '', (v) => keyLight.intensity = v);
     bindControl('ambient-intensity', 'ambientIntensity', '', (v) => ambientLight.intensity = v);
 
+    document.getElementById('enable-shadows').addEventListener('change', (e) => {
+      state.shadowsEnabled = e.target.checked;
+      shadowPlane.visible = state.shadowsEnabled;
+    });
+
     document.getElementById('anim-type').addEventListener('change', (e) => {
       state.animType = e.target.value;
     });
@@ -535,15 +576,15 @@
       }
     });
 
-    // Transparent Export
+    // Export with transparent background (Only 3D Model)
     document.getElementById('export-png-btn').addEventListener('click', () => {
-      const originalBg = scene.background;
-      scene.background = null;
+      const originalShadowVisibility = shadowPlane.visible;
+      shadowPlane.visible = false;
 
       renderer.render(scene, camera);
       const dataURL = renderer.domElement.toDataURL('image/png');
 
-      scene.background = originalBg;
+      shadowPlane.visible = originalShadowVisibility;
       renderer.render(scene, camera);
 
       const link = document.createElement('a');
@@ -569,13 +610,10 @@
       const direction = state.reverse ? -1 : 1;
 
       if (state.animType === 'rotate') {
-        // Rotate continuous spin: Left to Right (Y-axis)
         logoGroup.rotation.y += delta * state.speed * 2 * direction;
       } else if (state.animType === 'flip') {
-        // Flip continuous spin: Up and Down (X-axis)
         logoGroup.rotation.x += delta * state.speed * 2 * direction;
       } else if (state.animType === 'random') {
-        // Multi-axis spin: Left to Right and Up and Down (X and Y axes)
         logoGroup.rotation.y += delta * state.speed * 2 * direction;
         logoGroup.rotation.x += delta * state.speed * 1.5 * direction;
       }
