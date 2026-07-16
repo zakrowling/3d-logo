@@ -23,27 +23,26 @@
 
     body {
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-      background-color: #e3e3e3;
+      background-color: #e6e6e8;
       color: var(--text-color);
       overflow: hidden;
       height: 100vh;
       width: 100vw;
     }
 
+    /* Radial Spotlight Background Effect */
     #canvas-container {
       width: 100%;
       height: 100%;
       position: absolute;
       top: 0;
       left: 0;
-      /* Light Mode Radial Spotlight Gradient */
-      background: radial-gradient(circle at center, #ffffff 0%, #dcdcdc 50%, #bcbcbc 100%);
+      background: radial-gradient(circle at center, #ffffff 0%, #d4d4d8 65%, #b0b0b8 100%);
       transition: background 0.3s ease;
     }
 
-    /* Dark Mode Inverted Radial Spotlight Gradient */
-    #canvas-container.dark-theme {
-      background: radial-gradient(circle at center, #1b2654 0%, #0d1846 60%, #050a21 100%);
+    #canvas-container.theme-navy {
+      background: radial-gradient(circle at center, #1b2a63 0%, #0d1846 65%, #060a21 100%);
     }
 
     /* Floating Sidebar Settings */
@@ -259,24 +258,11 @@
       <div class="accordion-header">Theme Preset</div>
       <div class="accordion-content">
         <div class="control-group">
-          <label>Color Mode</label>
+          <label>Colour Mode</label>
           <select id="theme-preset">
-            <option value="blue-on-white">Brand Blue (#0079C8) on White Spotlight</option>
-            <option value="white-on-navy">White on Dark Navy Spotlight</option>
+            <option value="blue-on-white" selected>Brand Blue (#0079C8) on White</option>
+            <option value="white-on-navy">White on Dark Navy (#0D1846)</option>
           </select>
-        </div>
-      </div>
-    </div>
-
-    <div class="accordion-item">
-      <div class="accordion-header">Object</div>
-      <div class="accordion-content">
-        <div class="control-group">
-          <label>Extrusion Depth</label>
-          <div class="slider-container">
-            <input type="range" id="depth" min="1" max="50" value="12">
-            <span class="value-display" id="depth-val">12</span>
-          </div>
         </div>
       </div>
     </div>
@@ -316,7 +302,14 @@
     <div class="accordion-item">
       <div class="accordion-header">Lighting</div>
       <div class="accordion-content">
-        <div class="control-group">
+        <div class="control-group toggle-container">
+          <label style="margin:0">Ground Shadow</label>
+          <label class="switch">
+            <input type="checkbox" id="ground-shadow-toggle" checked>
+            <span class="slider"></span>
+          </label>
+        </div>
+        <div class="control-group" style="margin-top: 16px;">
           <label>Key Light X</label>
           <div class="slider-container">
             <input type="range" id="key-x" min="-10" max="10" step="0.1" value="2.0">
@@ -351,12 +344,8 @@
             <span class="value-display" id="ambient-intensity-val">0.30</span>
           </div>
         </div>
-        <div class="control-group toggle-container">
-          <label style="margin:0">Ground Shadow</label>
-          <label class="switch">
-            <input type="checkbox" id="enable-shadows" checked>
-            <span class="slider"></span>
-          </label>
+        <div class="control-group" style="margin-top: 12px;">
+          <button class="action-btn secondary" id="reset-light-btn">Reset Lighting</button>
         </div>
       </div>
     </div>
@@ -386,16 +375,26 @@
     const state = {
       preset: 'blue-on-white',
       depth: 12,
-      modelColor: '#0079C8',
+      markColor: '#0079C8',
+      textColor: '#0079C8',
       animType: 'none',
       speed: 0.5,
       reverse: false,
+      groundShadow: true,
       keyX: 2.0,
       keyY: 2.0,
       keyZ: 4.0,
       keyIntensity: 1.2,
-      ambientIntensity: 0.30,
-      shadowsEnabled: true
+      ambientIntensity: 0.30
+    };
+
+    const DEFAULT_LIGHTS = {
+      groundShadow: true,
+      keyX: 2.0,
+      keyY: 2.0,
+      keyZ: 4.0,
+      keyIntensity: 1.2,
+      ambientIntensity: 0.30
     };
 
     // Scene Setup
@@ -406,7 +405,7 @@
     const initialCameraPos = new THREE.Vector3(0, 0, 250);
     camera.position.copy(initialCameraPos);
 
-    const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true, alpha: true });
+    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, preserveDrawingBuffer: true });
     renderer.setSize(window.innerWidth, window.innerHeight);
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     renderer.shadowMap.enabled = true;
@@ -425,11 +424,11 @@
     keyLight.shadow.mapSize.width = 1024;
     keyLight.shadow.mapSize.height = 1024;
     keyLight.shadow.camera.near = 10;
-    keyLight.shadow.camera.far = 1000;
-    keyLight.shadow.camera.left = -150;
-    keyLight.shadow.camera.right = 150;
-    keyLight.shadow.camera.top = 150;
-    keyLight.shadow.camera.bottom = -150;
+    keyLight.shadow.camera.far = 500;
+    keyLight.shadow.camera.left = -100;
+    keyLight.shadow.camera.right = 100;
+    keyLight.shadow.camera.top = 100;
+    keyLight.shadow.camera.bottom = -100;
     keyLight.shadow.bias = -0.0005;
     scene.add(keyLight);
 
@@ -439,18 +438,23 @@
     }
     updateKeyLightPosition();
 
-    // Subtle Ground Shadow Plane
-    const shadowPlaneGeo = new THREE.PlaneGeometry(1000, 1000);
-    const shadowPlaneMat = new THREE.ShadowMaterial({ opacity: 0.18 });
+    // Ground Shadow Plane
+    const shadowPlaneGeo = new THREE.PlaneGeometry(300, 300);
+    const shadowPlaneMat = new THREE.ShadowMaterial({ opacity: 0.25 });
     const shadowPlane = new THREE.Mesh(shadowPlaneGeo, shadowPlaneMat);
     shadowPlane.rotation.x = -Math.PI / 2;
     shadowPlane.position.y = -35;
     shadowPlane.receiveShadow = true;
     scene.add(shadowPlane);
 
-    // Material setup
-    const material = new THREE.MeshStandardMaterial({
-      color: new THREE.Color(state.modelColor),
+    // Materials
+    const markMaterial = new THREE.MeshStandardMaterial({
+      color: new THREE.Color(state.markColor),
+      side: THREE.DoubleSide
+    });
+
+    const textMaterial = new THREE.MeshStandardMaterial({
+      color: new THREE.Color(state.textColor),
       side: THREE.DoubleSide
     });
 
@@ -459,6 +463,9 @@
     scene.add(logoGroup);
 
     function build3DObject() {
+      const currentRotation = logoGroup.rotation.clone();
+      logoGroup.rotation.set(0, 0, 0);
+
       while(logoGroup.children.length > 0) { 
         const obj = logoGroup.children[0];
         logoGroup.remove(obj); 
@@ -474,11 +481,13 @@
         steps: 1
       };
 
-      svgDataParsed.paths.forEach((path) => {
+      svgDataParsed.paths.forEach((path, pathIdx) => {
         const shapes = THREE.SVGLoader.createShapes(path);
+        const mat = pathIdx === 0 ? textMaterial : markMaterial;
+
         shapes.forEach((shape) => {
           const geometry = new THREE.ExtrudeGeometry(shape, extrudeSettings);
-          const mesh = new THREE.Mesh(geometry, material);
+          const mesh = new THREE.Mesh(geometry, mat);
           mesh.castShadow = true;
           mesh.receiveShadow = true;
           logoGroup.add(mesh);
@@ -494,6 +503,7 @@
       });
 
       logoGroup.scale.y = -1;
+      logoGroup.rotation.copy(currentRotation);
     }
 
     build3DObject();
@@ -509,6 +519,7 @@
     const bindControl = (id, property, valDisplaySuffix = '', callback = null) => {
       const elem = document.getElementById(id);
       const valDisplay = document.getElementById(`${id}-val`);
+      if (!elem) return;
       
       elem.addEventListener('input', (e) => {
         let val = e.target.type === 'checkbox' ? e.target.checked : parseFloat(e.target.value);
@@ -521,20 +532,37 @@
       });
     };
 
+    function updateControlValue(id, val, valDisplaySuffix = '') {
+      const elem = document.getElementById(id);
+      const valDisplay = document.getElementById(`${id}-val`);
+      if (!elem) return;
+      if (elem.type === 'checkbox') {
+        elem.checked = val;
+      } else {
+        elem.value = val;
+      }
+      if (valDisplay) valDisplay.textContent = (typeof val === 'number' && !Number.isInteger(val) ? val.toFixed(1) : val) + valDisplaySuffix;
+    }
+
     // Preset switcher
     document.getElementById('theme-preset').addEventListener('change', (e) => {
       state.preset = e.target.value;
       if (state.preset === 'blue-on-white') {
-        state.modelColor = '#0079C8';
-        container.classList.remove('dark-theme');
-      } else {
-        state.modelColor = '#ffffff';
-        container.classList.add('dark-theme');
+        state.markColor = '#0079C8';
+        state.textColor = '#0079C8';
+        container.classList.remove('theme-navy');
+        shadowPlaneMat.opacity = 0.25;
+      } else if (state.preset === 'white-on-navy') {
+        state.markColor = '#0079C8';
+        state.textColor = '#ffffff';
+        container.classList.add('theme-navy');
+        shadowPlaneMat.opacity = 0.45;
       }
-      material.color.set(state.modelColor);
+      markMaterial.color.set(state.markColor);
+      textMaterial.color.set(state.textColor);
     });
 
-    // Reset Object & Camera Position
+    // Reset Position
     document.getElementById('reset-pos-btn').addEventListener('click', () => {
       logoGroup.position.set(0, 0, 0);
       logoGroup.rotation.set(0, 0, 0);
@@ -543,7 +571,33 @@
       controls.update();
     });
 
-    bindControl('depth', 'depth', '', () => build3DObject());
+    // Ground Shadow Toggle
+    bindControl('ground-shadow-toggle', 'groundShadow', '', (v) => {
+      shadowPlane.visible = v;
+    });
+
+    // Reset Lighting Controls
+    document.getElementById('reset-light-btn').addEventListener('click', () => {
+      state.groundShadow = DEFAULT_LIGHTS.groundShadow;
+      state.keyX = DEFAULT_LIGHTS.keyX;
+      state.keyY = DEFAULT_LIGHTS.keyY;
+      state.keyZ = DEFAULT_LIGHTS.keyZ;
+      state.keyIntensity = DEFAULT_LIGHTS.keyIntensity;
+      state.ambientIntensity = DEFAULT_LIGHTS.ambientIntensity;
+
+      updateControlValue('ground-shadow-toggle', state.groundShadow);
+      updateControlValue('key-x', state.keyX);
+      updateControlValue('key-y', state.keyY);
+      updateControlValue('key-z', state.keyZ);
+      updateControlValue('key-intensity', state.keyIntensity);
+      updateControlValue('ambient-intensity', state.ambientIntensity);
+
+      shadowPlane.visible = state.groundShadow;
+      updateKeyLightPosition();
+      keyLight.intensity = state.keyIntensity;
+      ambientLight.intensity = state.ambientIntensity;
+    });
+
     bindControl('speed', 'speed', 'x');
     bindControl('reverse-dir', 'reverse');
 
@@ -554,16 +608,10 @@
     bindControl('key-intensity', 'keyIntensity', '', (v) => keyLight.intensity = v);
     bindControl('ambient-intensity', 'ambientIntensity', '', (v) => ambientLight.intensity = v);
 
-    document.getElementById('enable-shadows').addEventListener('change', (e) => {
-      state.shadowsEnabled = e.target.checked;
-      shadowPlane.visible = state.shadowsEnabled;
-    });
-
     document.getElementById('anim-type').addEventListener('change', (e) => {
       state.animType = e.target.value;
     });
 
-    // Modifier key listener for Pan mode translation
     window.addEventListener('keydown', (e) => {
       if (e.metaKey || e.ctrlKey) {
         controls.mouseButtons.LEFT = THREE.MOUSE.PAN;
@@ -576,15 +624,15 @@
       }
     });
 
-    // Export with transparent background (Only 3D Model)
+    // Transparent PNG Export
     document.getElementById('export-png-btn').addEventListener('click', () => {
-      const originalShadowVisibility = shadowPlane.visible;
+      const prevShadowVisibility = shadowPlane.visible;
       shadowPlane.visible = false;
 
       renderer.render(scene, camera);
       const dataURL = renderer.domElement.toDataURL('image/png');
 
-      shadowPlane.visible = originalShadowVisibility;
+      shadowPlane.visible = prevShadowVisibility;
       renderer.render(scene, camera);
 
       const link = document.createElement('a');
@@ -593,7 +641,6 @@
       link.click();
     });
 
-    // Window Resize
     window.addEventListener('resize', () => {
       camera.aspect = window.innerWidth / window.innerHeight;
       camera.updateProjectionMatrix();
